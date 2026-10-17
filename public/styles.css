@@ -202,3 +202,9 @@ button.ghost { background: transparent; color: var(--accent); padding: 8px 10px;
 .mx.wide .c.est { font-style: italic; opacity: 0.85; }
 .mx.wide .dn { width: 40px; }
 @media (max-width: 760px) { .timeline { flex-direction: column; } .tl-seg { flex: none !important; } }
+
+/* booking links */
+.book { font-size: 12px; white-space: nowrap; }
+.book a, .leaflet-popup-content .book a { color: var(--accent); text-decoration: none; font-weight: 550; }
+.book a:hover { text-decoration: underline; }
+.nowrap { white-space: nowrap; }

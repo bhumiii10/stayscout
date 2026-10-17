@@ -6,6 +6,7 @@ StayScout shows:
 - **The cheapest plan:** which order to visit your cities and the best start date. You can change how many nights you spend in each city, and it recalculates instantly.
 - **When to go where:** a grid of cities × nights, colored by hotel price
 - **Fixed dates? Split your stay by district:** e.g. 3 nights in Ueno, then 4 in Asakusa, if that's cheaper. With fixed dates, every night is checked and the best mix of districts is found (0, 1 or 2 hotel changes, each stay ≥ 2 nights). A move is only recommended if it saves at least 5%.
+- **Book directly:** every hotel has Booking.com and Agoda links with your dates and guests filled in. In a district split, each hotel's links use the dates of that stay.
 - **Each city in detail:** price calendar, cheapest areas, hotel map and list
 
 Prices come from **Google Hotels via SerpApi**. Google Hotels pulls in Booking.com, Agoda, Expedia and others. With no key, it runs on **demo data**: fake prices for every city in `lib/countries.js`.

@@ -525,6 +525,8 @@ function renderCalendar(city) {
       state.cityStart = x.date;
       renderCityDates(city);
       renderCalendar(city);
+      const detail = state.cityDetail.get(city.name);
+      if (detail) { renderHotels(detail, false); renderCityMap(detail); }
     });
   });
 }
@@ -612,7 +614,7 @@ function renderSplit(city, detail) {
           .sort((a, b) => a.avg - b.avg)
           .slice(0, 3);
         return `<div><h3>Stay ${chosen.stays.indexOf(x) + 1}: ${esc(x.district)}</h3><ol>${ranked
-          .map(({ h, avg, exact }) => `<li>${h.link ? `<a href="${esc(h.link)}" target="_blank" rel="noopener">${esc(h.name)}</a>` : esc(h.name)} · ${exact ? '' : '≈'}${money(Math.round(avg))}/night</li>`)
+          .map(({ h, avg, exact }) => `<li>${esc(h.name)} · ${exact ? '' : '≈'}${money(Math.round(avg))}/night<br>${bookLinks(h, city.name, nightDate(x.from), x.nights)}</li>`)
           .join('')}</ol></div>`;
       })
       .join('');
@@ -664,15 +666,43 @@ function renderAreas(detail) {
 function renderHotels(detail, showAll) {
   const rows = [...detail.hotels].sort((a, b) => a.estNightly - b.estNightly);
   const shown = showAll ? rows : rows.slice(0, 10);
+  const { checkin, nights } = hotelDates(detail.name);
+  $('#hotelsFor').textContent = `Book links open ${fmtDay(checkin)} → ${fmtDay(addDays(checkin, nights))} (${nights} nights)`;
   $('#hotels').innerHTML =
-    '<tr><th>Hotel</th><th>Typical / night</th><th>Seen</th><th>Class</th><th>Rating</th></tr>' +
+    '<tr><th>Hotel</th><th>Typical / night</th><th>Seen</th><th>Class</th><th>Rating</th><th>Book</th></tr>' +
     shown
-      .map((h) => `<tr><td>${h.link ? `<a href="${esc(h.link)}" target="_blank" rel="noopener">${esc(h.name)}</a>` : esc(h.name)}</td><td>${money(h.estNightly)}</td><td>${money(h.priceLow)}–${money(h.priceHigh)}</td><td>${h.stars ? h.stars + '★' : '–'}</td><td>${h.rating ?? '–'}</td></tr>`)
+      .map((h) => `<tr><td>${esc(h.name)}</td><td>${money(h.estNightly)}</td><td>${money(h.priceLow)}–${money(h.priceHigh)}</td><td>${h.stars ? h.stars + '★' : '–'}</td><td>${h.rating ?? '–'}</td><td class="nowrap">${bookLinks(h, detail.name, checkin, nights)}</td></tr>`)
       .join('');
   const btn = $('#moreHotels');
   btn.hidden = rows.length <= 10;
   btn.textContent = showAll ? 'Show fewer' : `Show all ${rows.length} hotels`;
   btn.onclick = () => renderHotels(detail, !showAll);
+}
+
+// ---------- booking links ----------
+// Dates for the hotel list / map: the clicked calendar dates, else this city's stay in the plan.
+function hotelDates(cityName) {
+  const city = okCities().find((c) => c.name === cityName);
+  const n = cityNights(cityName);
+  if (state.cityStart) return { checkin: state.cityStart, nights: n };
+  const { startIdx, n: nights } = cityStay(city);
+  return { checkin: nightDate(startIdx), nights };
+}
+
+// Deep links that open the hotel on Booking.com / Agoda with dates and guests filled in.
+// They search by hotel name + city, so the right hotel is (almost always) the top result.
+function bookLinks(h, cityName, checkin, nights) {
+  const checkout = addDays(checkin, nights);
+  const adults = state.trip.params.adults;
+  const q = `${h.name}, ${cityName}`;
+  const booking = 'https://www.booking.com/searchresults.html?' + new URLSearchParams({
+    ss: q, checkin, checkout, group_adults: adults, no_rooms: 1, group_children: 0, lang: 'en-us', selected_currency: state.trip.params.currency,
+  });
+  const agoda = 'https://www.agoda.com/search?' + new URLSearchParams({
+    textToSearch: q, checkIn: checkin, checkOut: checkout, los: nights, adults, rooms: 1, children: 0, locale: 'en-us', currencyCode: state.trip.params.currency,
+  });
+  const site = h.link ? ` · <a href="${esc(h.link)}" target="_blank" rel="noopener">Hotel site</a>` : '';
+  return `<span class="book"><a href="${esc(booking)}" target="_blank" rel="noopener">Booking.com</a> · <a href="${esc(agoda)}" target="_blank" rel="noopener">Agoda</a>${site}</span>`;
 }
 
 function renderCityMap(detail) {
@@ -681,7 +711,7 @@ function renderCityMap(detail) {
   const sc = scale(detail.hotels.map((h) => h.estNightly));
   [...detail.hotels].sort((a, b) => b.estNightly - a.estNightly).forEach((h) => {
     L.circleMarker([h.lat, h.lng], { radius: 8, weight: 2, color: cssVar('--surface'), fillOpacity: 1, fillColor: cssVar(`--s${sc.step(h.estNightly)}`) })
-      .bindPopup(`<b>${esc(h.name)}</b><br>≈ ${money(h.estNightly)} / night${h.stars ? ` · ${h.stars}★` : ''}${h.rating ? ` · ${h.rating}/5` : ''}${h.link ? `<br><a href="${esc(h.link)}" target="_blank" rel="noopener">Hotel website</a>` : ''}`)
+      .bindPopup(`<b>${esc(h.name)}</b><br>≈ ${money(h.estNightly)} / night${h.stars ? ` · ${h.stars}★` : ''}${h.rating ? ` · ${h.rating}/5` : ''}<br>${bookLinks(h, detail.name, hotelDates(detail.name).checkin, hotelDates(detail.name).nights)}`)
       .addTo(layer);
   });
   map.fitBounds(L.latLngBounds(detail.hotels.map((h) => [h.lat, h.lng])).pad(0.1));
