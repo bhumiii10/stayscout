@@ -3,7 +3,7 @@
 // 2) /api/trip returns a nightly price series for each picked city
 // 3) itinerary.js finds the cheapest order + start date (in the browser)
 // 4) /api/city returns hotels + areas for a city tab (served from cache)
-import { optimise, splitNights } from './itinerary.js';
+import { optimise, splitNights, splitStay } from './itinerary.js';
 import { $, $$, addDays, diffDays, esc, fmtDay, fmtDayW, legendHtml, moneyFormatter, scale, tipOn, cssVar } from './util.js';
 
 const MAX_CITIES = 6;
@@ -30,6 +30,9 @@ let money = moneyFormatter('USD');
   const today = new Date().toISOString().slice(0, 10);
   form.from.value = addDays(today, 30);
   form.to.value = addDays(today, 75);
+  form.checkin.value = addDays(today, 30);
+  form.checkout.value = addDays(today, 37);
+  form.checkin.min = form.checkout.min = today;
   form.from.min = form.to.min = today;
   fetch('/api/info').then((r) => r.json()).then((info) => {
     state.live = info.live;
@@ -122,8 +125,29 @@ function addCity() {
   renderChips();
 }
 
+// Flexible = "when is it cheapest?" (sample a few nights). Fixed = exact dates (check every night).
+const isFixed = () => form.dateMode.value === 'fixed';
+const fixedNights = () => diffDays(form.checkin.value, form.checkout.value);
+
+function setDateMode() {
+  const fixed = isFixed();
+  $('#flexFields').hidden = fixed;
+  $('#fixedFields').hidden = !fixed;
+  for (const n of ['from', 'to', 'nights']) form[n].required = !fixed;
+  for (const n of ['checkin', 'checkout']) form[n].required = fixed;
+  form.samples.disabled = fixed;
+  updateCost();
+}
+$$('input[name="dateMode"]').forEach((r) => r.addEventListener('change', setDateMode));
+form.checkin.addEventListener('change', () => {
+  if (form.checkout.value <= form.checkin.value) form.checkout.value = addDays(form.checkin.value, 7);
+  updateCost();
+});
+form.checkout.addEventListener('change', updateCost);
+
 function updateCost() {
-  const n = state.selected.size * Number(form.samples.value);
+  const perCity = isFixed() ? Math.min(Math.max(fixedNights(), 0), 20) : Number(form.samples.value);
+  const n = state.selected.size * perCity;
   $('#cost').textContent = !state.selected.size
     ? 'Pick at least one city.'
     : state.live
@@ -143,6 +167,14 @@ function queryString(cities) {
   const fd = new FormData(form);
   const p = new URLSearchParams();
   for (const k of ['from', 'to', 'nights', 'adults', 'currency', 'minStars', 'samples']) p.set(k, fd.get(k));
+  if (isFixed()) {
+    // one possible start date; check every night (up to 20)
+    const n = fixedNights();
+    p.set('from', form.checkin.value);
+    p.set('to', form.checkin.value);
+    p.set('nights', n);
+    p.set('samples', Math.min(Math.max(n, 2), 20));
+  }
   p.set('cities', cities.join(','));
   return p.toString();
 }
@@ -150,6 +182,7 @@ function queryString(cities) {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!state.selected.size) return;
+  if (isFixed() && fixedNights() < 1) return setStatus('Check-out must be after check-in.', true);
   const btn = $('#go');
   btn.disabled = true;
   setStatus(`Checking hotel prices in ${state.selected.size} ${state.selected.size === 1 ? 'city' : 'cities'}… the first time can take 20–40 seconds.`);
@@ -167,7 +200,7 @@ form.addEventListener('submit', async (e) => {
     $('#intro').hidden = true;
     collapseSearch(true);
     renderTabs();
-    showTab('trip');
+    showTab(ok.length === 1 ? ok[0].name : 'trip'); // one city: go straight to it
     $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (err) {
     setStatus(err.message, true);
@@ -184,7 +217,10 @@ function collapseSearch(collapsed) {
     const p = state.trip.params;
     const where = state.place?.type === 'country' ? `${state.place.country}: ` : '';
     $('#summaryText').innerHTML =
-      `<b>${esc(where)}${p.cities.map(esc).join(', ')}</b><span class="muted"> · start between ${fmtDay(p.from)} and ${fmtDay(p.to)} · ${p.nights} nights</span>`;
+      `<b>${esc(where)}${p.cities.map(esc).join(', ')}</b><span class="muted"> · ` +
+      (p.from === p.to
+        ? `${fmtDayW(p.from)} → ${fmtDayW(addDays(p.from, p.nights))} · ${p.nights} nights</span>`
+        : `start between ${fmtDay(p.from)} and ${fmtDay(p.to)} · ${p.nights} nights</span>`);
   }
 }
 $('#editSearch').addEventListener('click', () => {
@@ -391,10 +427,12 @@ function renderCountryMap() {
 async function showCity(name) {
   const city = okCities().find((c) => c.name === name);
   state.cityStart = null;
+  state.splitPick = null;
   renderCityDates(city);
   renderCalendar(city);
   if (!state.cityDetail.has(name)) {
     $('#areas').innerHTML = '<li class="muted">Loading areas…</li>';
+    $('#splitCard').hidden = true;
     $('#hotels').innerHTML = '';
     try {
       const data = await api('/api/city?' + queryString([name]));
@@ -406,6 +444,7 @@ async function showCity(name) {
   }
   if (state.tab !== name) return; // user switched tabs while loading
   const detail = state.cityDetail.get(name);
+  renderSplit(city, detail);
   renderAreas(detail);
   renderHotels(detail, false);
   renderCityMap(detail);
@@ -420,9 +459,9 @@ function renderCityDates(city) {
   let best = 0;
   for (let s = 1; s <= lastStart; s++) if (stayCost(city, s, n).t < stayCost(city, best, n).t) best = s;
   const bc = stayCost(city, best, n);
-  $('#cityEyebrow').textContent = `Cheapest ${n} nights in ${city.name}`;
+  $('#cityEyebrow').textContent = lastStart === 0 ? `Your ${n} nights in ${city.name}` : `Cheapest ${n} nights in ${city.name}`;
   $('#cityBest').textContent = `${fmtDayW(nightDate(best))} → ${fmtDayW(addDays(nightDate(best), n))}`;
-  $('#cityBestSub').textContent = `≈ ${money(bc.t)} typical · ≈ ${money(bc.b)} budget picks`;
+  $('#cityBestSub').textContent = `≈ ${money(bc.t)} at a typical hotel · ≈ ${money(bc.b)} at budget picks`;
 
   const side = $('#cityInPlan').previousElementSibling;
   if (state.cityStart) {
@@ -488,6 +527,124 @@ function renderCalendar(city) {
       renderCalendar(city);
     });
   });
+}
+
+// ---------- district split ----------
+// Which nights this city covers: its leg in the selected plan, else its cheapest window.
+function cityStay(city) {
+  const leg = selectedOption()?.legs.find((l) => l.city === city.name);
+  if (leg) return { startIdx: leg.startIdx, n: leg.nights };
+  const n = cityNights(city.name);
+  let best = 0;
+  for (let s = 1; s <= city.nights.length - n; s++) if (stayCost(city, s, n).t < stayCost(city, best, n).t) best = s;
+  return { startIdx: best, n };
+}
+
+function renderSplit(city, detail) {
+  const card = $('#splitCard');
+  const districts = (detail.districts || []).filter((d) => d.nights.length === state.trip.allNights.length);
+  const { startIdx, n } = cityStay(city);
+  if (districts.length < 2 || n < 1) return (card.hidden = true);
+  card.hidden = false;
+
+  // Best plan with 0, 1, 2 moves. Only keep a plan with more moves if it actually saves money.
+  const all = splitStay(districts, startIdx, n, { maxMoves: 2, minLen: 2 });
+  const plans = all.filter((p, i) => i === 0 || p.total < Math.min(...all.slice(0, i).map((q) => q.total)));
+  const single = plans[0];
+  const cheapest = plans.reduce((a, p) => (p.total < a.total ? p : a), single);
+  // Moving hotels is a hassle: only recommend it if it saves at least 5%.
+  const worthIt = single.total - cheapest.total >= single.total * 0.05;
+  const recommended = worthIt ? cheapest : single;
+  let chosen = plans.find((p) => p.moves === state.splitPick) || recommended;
+
+  const start = nightDate(startIdx);
+  $('#splitDates').textContent = `${fmtDayW(start)} → ${fmtDayW(addDays(start, n))} · ${n} nights`;
+  const seen = districts.reduce((a, d) => a + d.nights.slice(startIdx, startIdx + n).filter((x) => x.seen).length, 0);
+  const pctReal = Math.round((100 * seen) / (districts.length * n));
+  $('#splitIntro').textContent =
+    (cheapest.moves === 0
+      ? `Staying in ${single.stays[0].district} the whole time is cheapest. Moving hotels wouldn't save money.`
+      : worthIt
+        ? `Moving hotels ${cheapest.moves === 1 ? 'once' : 'twice'} saves about ${money(single.total - cheapest.total)} compared with staying in ${single.stays[0].district} the whole time.`
+        : `Moving would only save ${money(single.total - cheapest.total)}, so staying in ${single.stays[0].district} is the better deal.`) +
+    ` Each stay is at least 2 nights. ` +
+    (pctReal === 100 ? 'All prices were checked for these exact nights.' : `${pctReal}% of district-nights are checked prices, the rest estimated.`);
+
+  const draw = () => {
+    $('#splitOpts').innerHTML = plans
+      .map((p) => {
+        const label = p.moves === 0 ? 'One place' : p.moves === 1 ? '1 hotel change' : '2 hotel changes';
+        const save = single.total - p.total;
+        return `<button type="button" class="alt" data-m="${p.moves}" aria-pressed="${p === chosen}">
+          <div class="eyebrow">${label}${p === recommended ? ' · best deal' : ''}</div>
+          <div><span class="t">${money(p.total)}</span>${save > 0 ? ` <span class="muted small">(save ${money(save)})</span>` : ''}</div>
+          <div class="small muted">${p.stays.map((x) => esc(x.district)).join(' → ')}</div>
+        </button>`;
+      })
+      .join('');
+    $$('#splitOpts .alt').forEach((b) =>
+      b.addEventListener('click', () => {
+        state.splitPick = Number(b.dataset.m);
+        chosen = plans.find((p) => p.moves === state.splitPick);
+        draw();
+      }));
+
+    $('#splitTimeline').innerHTML = chosen.stays
+      .map((x) => `<div class="tl-seg" style="flex:${x.nights}">
+        <div class="d">${esc(x.district)}</div>
+        <div class="s">${x.nights} nights · ${fmtDay(nightDate(x.from))} → ${fmtDay(addDays(nightDate(x.from), x.nights))}</div>
+        <div class="s">≈ ${money(x.cost)} (${money(Math.round(x.cost / x.nights))}/night)</div>
+      </div>`)
+      .join('');
+
+    // Cheapest hotels in each stay's district, judged on the nights of that stay.
+    const hotelsById = new Map(detail.hotels.map((h) => [h.id, h]));
+    $('#splitHotels').innerHTML = chosen.stays
+      .map((x) => {
+        const dates = Array.from({ length: x.nights }, (_, i) => nightDate(x.from + i));
+        const ranked = districts[x.d].hotelIds
+          .map((id) => hotelsById.get(id))
+          .filter(Boolean)
+          .map((h) => {
+            const seenPrices = dates.map((d) => h.obs?.[d]).filter(Number.isFinite);
+            return { h, avg: seenPrices.length ? seenPrices.reduce((a, b) => a + b, 0) / seenPrices.length : h.estNightly, exact: seenPrices.length === dates.length };
+          })
+          .sort((a, b) => a.avg - b.avg)
+          .slice(0, 3);
+        return `<div><h3>Stay ${chosen.stays.indexOf(x) + 1}: ${esc(x.district)}</h3><ol>${ranked
+          .map(({ h, avg, exact }) => `<li>${h.link ? `<a href="${esc(h.link)}" target="_blank" rel="noopener">${esc(h.name)}</a>` : esc(h.name)} · ${exact ? '' : '≈'}${money(Math.round(avg))}/night</li>`)
+          .join('')}</ol></div>`;
+      })
+      .join('');
+
+    renderSplitMatrix(districts, startIdx, n, chosen);
+  };
+  draw();
+}
+
+function renderSplitMatrix(districts, startIdx, n, chosen) {
+  const cells = districts.flatMap((d) => d.nights.slice(startIdx, startIdx + n).map((x) => x.price));
+  const sc = scale(cells);
+  $('#splitLegend').innerHTML = legendHtml(sc, money, 'per night · italic = estimated');
+  const inPlan = new Set(chosen.stays.flatMap((x) => Array.from({ length: x.nights }, (_, i) => `${x.d}|${x.from + i}`)));
+  const order = districts.map((d, i) => i).sort((a, b) => {
+    const avg = (k) => districts[k].nights.slice(startIdx, startIdx + n).reduce((s, x) => s + x.price, 0);
+    return avg(a) - avg(b);
+  });
+  let html = `<div class="mx wide" style="grid-template-columns: auto repeat(${n}, 40px)"><div class="lbl"></div>`;
+  for (let i = 0; i < n; i++) {
+    const d = nightDate(startIdx + i);
+    html += `<div class="dn ${[5, 6].includes(new Date(d + 'T00:00:00Z').getUTCDay()) ? 'we' : ''}">${fmtDay(d, { weekday: 'short' })}<br>${Number(d.slice(8))}</div>`;
+  }
+  for (const k of order) {
+    const d = districts[k];
+    html += `<div class="lbl">${esc(d.name)}</div>`;
+    for (let i = 0; i < n; i++) {
+      const x = d.nights[startIdx + i];
+      html += `<div class="c ${sc.isDark(x.price) ? 'dark' : ''} ${x.seen ? '' : 'est'} ${inPlan.has(`${k}|${startIdx + i}`) ? 'in' : ''}" style="background:${sc.color(x.price)}" title="${esc(d.name)}, night of ${fmtDayW(nightDate(startIdx + i))}: ${money(x.price)}${x.seen ? '' : ' (estimated)'}">${Math.round(x.price)}</div>`;
+    }
+  }
+  $('#splitMatrix').innerHTML = html + '</div>';
 }
 
 function renderAreas(detail) {

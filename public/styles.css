@@ -174,3 +174,31 @@ button.ghost { background: transparent; color: var(--accent); padding: 8px 10px;
 .summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 20px; }
 .summary b { font-weight: 600; }
 .gate { display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
+
+/* date mode switch */
+.when-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.seg { display: inline-flex; background: var(--soft); border-radius: 999px; padding: 3px; }
+.seg label { flex-direction: row; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg span { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 550; color: var(--ink-2); }
+.seg input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); }
+.fixed-note { align-self: center; }
+
+/* district split */
+.split-opts { margin: 12px 0; }
+.timeline { display: flex; gap: 4px; margin: 4px 0 14px; }
+.tl-seg { min-width: 0; background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; border-left: 4px solid var(--accent); }
+.tl-seg .d { font-weight: 650; }
+.tl-seg .s { font-size: 13px; color: var(--ink-2); }
+.split-hotels { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.split-hotels h3 { font-size: 13px; margin: 0 0 4px; color: var(--ink-2); font-weight: 600; }
+.split-hotels ol { margin: 0; padding-left: 18px; font-size: 13px; }
+.split-hotels li { padding: 2px 0; }
+.split-hotels a { color: var(--accent); text-decoration: none; }
+.split-grid-wrap summary { cursor: pointer; color: var(--ink-2); font-size: 13px; margin: 8px 0; }
+.mx.wide .c { width: 40px; height: 30px; font-size: 11px; display: grid; place-items: center; font-variant-numeric: tabular-nums; color: var(--ink); }
+.mx.wide .c.dark { color: var(--on-dark); }
+.mx.wide .c.est { font-style: italic; opacity: 0.85; }
+.mx.wide .dn { width: 40px; }
+@media (max-width: 760px) { .timeline { flex-direction: column; } .tl-seg { flex: none !important; } }

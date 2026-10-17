@@ -5,6 +5,7 @@ StayScout shows:
 
 - **The cheapest plan:** which order to visit your cities and the best start date. You can change how many nights you spend in each city, and it recalculates instantly.
 - **When to go where:** a grid of cities × nights, colored by hotel price
+- **Fixed dates? Split your stay by district:** e.g. 3 nights in Ueno, then 4 in Asakusa, if that's cheaper. With fixed dates, every night is checked and the best mix of districts is found (0, 1 or 2 hotel changes, each stay ≥ 2 nights). A move is only recommended if it saves at least 5%.
 - **Each city in detail:** price calendar, cheapest areas, hotel map and list
 
 Prices come from **Google Hotels via SerpApi**. Google Hotels pulls in Booking.com, Agoda, Expedia and others. With no key, it runs on **demo data**: fake prices for every city in `lib/countries.js`.
@@ -42,8 +43,9 @@ The free SerpApi tier gives 250 searches/month (and 50/hour). So:
 2. **Sample.** For each picked city, about 5 nights spread across your window are checked, roughly 1 in 3 on Fri/Sat. Each check is one API search. 4 cities × 5 = 20 searches.
 3. **Estimate the rest.** The weekend premium is measured, then a straight line is drawn between the checked nights to get the trend, and the premium is added back on Fri/Sat nights.
 4. **Plan the route** (in the browser, `public/itinerary.js`). It tries every city order × every start date and picks the cheapest. Zig-zag routes get a small distance penalty, so near-ties go to the route that makes geographic sense. Train/flight costs between cities are **not** included.
-5. **City detail.** Opening a city tab reuses the cached samples (no new searches) and names the cheapest areas using OpenStreetMap (free).
-6. **Cache.** Every lookup is saved in `.cache/` for 24h.
+5. **District split** (`splitStay` in `public/itinerary.js`). Each district's price per night comes from its hotels' real prices on the checked nights, or an estimate when none of its hotels showed up that night. A small dynamic-programming search then finds the cheapest sequence of districts.
+6. **City detail.** Opening a city tab reuses the cached samples (no new searches) and names the cheapest areas using OpenStreetMap (free).
+7. **Cache.** Every lookup is saved in `.cache/` for 24h.
 
 "Typical" = median hotel price that night. "Budget" = cheapest quarter. Prices are per room per night, before taxes.
 

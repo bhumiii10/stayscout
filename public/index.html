@@ -50,11 +50,22 @@
       <div class="step">
         <span class="num">2</span>
         <div class="step-body">
-          <span class="step-title">When?</span>
-          <div class="when">
+          <div class="when-head">
+            <span class="step-title">When?</span>
+            <div class="seg" role="radiogroup" aria-label="Date flexibility">
+              <label><input type="radio" name="dateMode" value="flexible" checked /><span>Flexible dates</span></label>
+              <label><input type="radio" name="dateMode" value="fixed" /><span>Fixed dates</span></label>
+            </div>
+          </div>
+          <div class="when" id="flexFields">
             <label>Earliest start<input name="from" type="date" required /></label>
             <label>Latest start<input name="to" type="date" required /></label>
             <label>Trip length<span class="suffix"><input name="nights" type="number" min="1" max="30" value="8" required /><span>nights</span></span></label>
+          </div>
+          <div class="when" id="fixedFields" hidden>
+            <label>Check-in<input name="checkin" type="date" /></label>
+            <label>Check-out<input name="checkout" type="date" /></label>
+            <span class="muted small fixed-note">Every night gets checked, so we can also find the cheapest mix of districts.</span>
           </div>
           <details class="more">
             <summary>More options</summary>
@@ -141,6 +152,22 @@
             <div id="cityInPlan" class="big small-big"></div>
             <div id="cityInPlanSub" class="muted"></div>
           </div>
+        </div>
+
+        <div class="card" id="splitCard">
+          <div class="card-head">
+            <h2>Cheapest mix of districts</h2>
+            <span class="muted small" id="splitDates"></span>
+          </div>
+          <p class="muted small" id="splitIntro"></p>
+          <div id="splitOpts" class="alts split-opts"></div>
+          <div id="splitTimeline" class="timeline"></div>
+          <div id="splitHotels" class="split-hotels"></div>
+          <details class="split-grid-wrap">
+            <summary>District prices night by night</summary>
+            <div id="splitLegend" class="legend"></div>
+            <div id="splitMatrix" class="matrix"></div>
+          </details>
         </div>
 
         <div class="grid2">
