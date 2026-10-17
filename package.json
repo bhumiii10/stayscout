@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Find the cheapest dates and areas for hotels in a flexible date window.",
   "scripts": {
-    "start": "node --env-file-if-exists=.env server.js",
-    "dev": "node --watch --env-file-if-exists=.env server.js"
+    "start": "node --env-file-if-exists=.env dev-server.js",
+    "dev": "node --watch --env-file-if-exists=.env dev-server.js"
   },
   "engines": {
     "node": "22.x"

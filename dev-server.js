@@ -1,4 +1,5 @@
 // StayScout local server (zero dependencies). On Vercel, api/*.js is used instead.
+// Named dev-server.js on purpose: Vercel auto-detects a root server.js and routes everything to it.
 // Serves the frontend from /public plus the JSON API:
 //   GET /api/info                         which data source is active
 //   GET /api/place?q=Japan                country → popular cities (or a single city)

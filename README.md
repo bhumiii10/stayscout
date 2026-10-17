@@ -22,7 +22,7 @@ npm run dev              # same, restarts on file changes
 
 ## Deploy to Vercel (free)
 
-The `api/` folder holds Vercel serverless functions and `public/` is served as static files. `server.js` is only for local use.
+The `api/` folder holds Vercel serverless functions and `public/` is served as static files. `dev-server.js` is only for local use (it must not be called `server.js`, or Vercel treats it as the whole app).
 
 1. Push this repo to GitHub, then on vercel.com click **Add New → Project** and import it. No build settings are needed.
 2. Under **Settings → Environment Variables**, add:
@@ -53,7 +53,7 @@ The free SerpApi tier gives 250 searches/month (and 50/hour). So:
 
 | File | What it does |
 |---|---|
-| `server.js` | Local dev server: static files + API |
+| `dev-server.js` | Local dev server: static files + API |
 | `api/*.js` | Vercel serverless functions (thin wrappers) |
 | `lib/routes.js` | API handlers shared by both, plus the optional access code |
 | `lib/plan.js` | Sampling + estimating each city's nightly prices; hotel aggregation |
