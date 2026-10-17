@@ -599,29 +599,60 @@ function renderSplit(city, detail) {
       </div>`)
       .join('');
 
-    // Cheapest hotels in each stay's district, judged on the nights of that stay.
-    const hotelsById = new Map(detail.hotels.map((h) => [h.id, h]));
-    $('#splitHotels').innerHTML = chosen.stays
-      .map((x) => {
-        const dates = Array.from({ length: x.nights }, (_, i) => nightDate(x.from + i));
-        const ranked = districts[x.d].hotelIds
-          .map((id) => hotelsById.get(id))
-          .filter(Boolean)
-          .map((h) => {
-            const seenPrices = dates.map((d) => h.obs?.[d]).filter(Number.isFinite);
-            return { h, avg: seenPrices.length ? seenPrices.reduce((a, b) => a + b, 0) / seenPrices.length : h.estNightly, exact: seenPrices.length === dates.length };
-          })
-          .sort((a, b) => a.avg - b.avg)
-          .slice(0, 3);
-        return `<div><h3>Stay ${chosen.stays.indexOf(x) + 1}: ${esc(x.district)}</h3><ol>${ranked
-          .map(({ h, avg, exact }) => `<li>${esc(h.name)} · ${exact ? '' : '≈'}${money(Math.round(avg))}/night<br>${bookLinks(h, city.name, nightDate(x.from), x.nights)}</li>`)
-          .join('')}</ol></div>`;
-      })
-      .join('');
-
+    renderStayHotels(city, detail, districts, chosen);
     renderSplitMatrix(districts, startIdx, n, chosen);
   };
   draw();
+}
+
+// ---------- live availability ----------
+// One real search per exact stay (e.g. Ueno, Mar 8 → 11): only hotels with rooms
+// every night come back, with the real total. Results are cached in the browser too.
+const stayChecks = new Map();
+function checkStay(cityName, area, checkin, nights) {
+  const p = state.trip.params;
+  const q = new URLSearchParams({ city: cityName, checkin, checkout: addDays(checkin, nights), adults: p.adults, currency: p.currency, minStars: p.minStars });
+  if (area) q.set('area', area);
+  const key = q.toString();
+  if (!stayChecks.has(key)) {
+    stayChecks.set(key, api('/api/stay?' + key).catch((err) => {
+      stayChecks.delete(key);
+      throw err;
+    }));
+  }
+  return stayChecks.get(key);
+}
+
+const hotelLine = (h, cityName, checkin, nights) =>
+  `<li><b>${esc(h.name)}</b>${h.stars ? ` · ${h.stars}★` : ''}${h.rating ? ` · ${h.rating}/5` : ''}<br>
+    <span class="ok">✓ Rooms all ${nights} nights</span> · ${money(h.total)} total (${money(Math.round(h.total / nights))}/night)<br>
+    ${bookLinks(h, cityName, checkin, nights)}</li>`;
+
+function renderStayHotels(city, detail, districts, chosen) {
+  const box = $('#splitHotels');
+  box.innerHTML = chosen.stays
+    .map((x, i) => `<div data-i="${i}"><h3>Stay ${i + 1}: ${esc(x.district)} · ${fmtDay(nightDate(x.from))} → ${fmtDay(addDays(nightDate(x.from), x.nights))}</h3><p class="muted small">Checking which hotels have rooms for all ${x.nights} nights…</p></div>`)
+    .join('');
+  const token = (state.splitToken = (state.splitToken || 0) + 1);
+  chosen.stays.forEach(async (x, i) => {
+    const checkin = nightDate(x.from);
+    // "Near <hotel>" isn't a real place name, so search the whole city and keep this district's hotels.
+    const named = !x.district.startsWith('Near ');
+    let html;
+    try {
+      const res = await checkStay(city.name, named ? x.district : null, checkin, x.nights);
+      const ids = new Set(districts[x.d].hotelIds);
+      const avail = named ? res.hotels : res.hotels.filter((h) => ids.has(h.id));
+      html = avail.length
+        ? `<ol>${avail.slice(0, 3).map((h) => hotelLine(h, city.name, checkin, x.nights)).join('')}</ol>`
+        : `<p class="muted small">No hotel in ${esc(x.district)} had rooms for every night. Try another option above.</p>`;
+    } catch (err) {
+      html = `<p class="muted small">Couldn't check availability: ${esc(err.message)}</p>`;
+    }
+    if (state.tab !== city.name || state.splitToken !== token) return; // user moved on
+    const slot = box.querySelector(`[data-i="${i}"]`);
+    if (slot) slot.querySelector('p, ol')?.replaceWith(Object.assign(document.createElement('div'), { innerHTML: html }).firstElementChild);
+  });
 }
 
 function renderSplitMatrix(districts, startIdx, n, chosen) {
@@ -667,12 +698,27 @@ function renderHotels(detail, showAll) {
   const rows = [...detail.hotels].sort((a, b) => a.estNightly - b.estNightly);
   const shown = showAll ? rows : rows.slice(0, 10);
   const { checkin, nights } = hotelDates(detail.name);
-  $('#hotelsFor').textContent = `Book links open ${fmtDay(checkin)} → ${fmtDay(addDays(checkin, nights))} (${nights} nights)`;
+  $('#hotelsFor').textContent = `For ${fmtDay(checkin)} → ${fmtDay(addDays(checkin, nights))} (${nights} nights)`;
+  const avail = state.hotelAvail?.key === `${detail.name}|${checkin}|${nights}` ? state.hotelAvail.byId : null;
+  const yourDates = (h) => {
+    if (!avail) return '<span class="muted">checking…</span>';
+    const a = avail.get(h.id);
+    return a ? `<span class="ok">✓</span> ${money(a.total)} total` : '<span class="muted">No rooms all nights*</span>';
+  };
   $('#hotels').innerHTML =
-    '<tr><th>Hotel</th><th>Typical / night</th><th>Seen</th><th>Class</th><th>Rating</th><th>Book</th></tr>' +
+    '<tr><th>Hotel</th><th>Your dates</th><th>Typical / night</th><th>Class</th><th>Rating</th><th>Book</th></tr>' +
     shown
-      .map((h) => `<tr><td>${esc(h.name)}</td><td>${money(h.estNightly)}</td><td>${money(h.priceLow)}–${money(h.priceHigh)}</td><td>${h.stars ? h.stars + '★' : '–'}</td><td>${h.rating ?? '–'}</td><td class="nowrap">${bookLinks(h, detail.name, checkin, nights)}</td></tr>`)
+      .map((h) => `<tr class="${avail && !avail.get(h.id) ? 'dim' : ''}"><td>${esc(h.name)}</td><td class="nowrap">${yourDates(h)}</td><td>${money(h.estNightly)}</td><td>${h.stars ? h.stars + '★' : '–'}</td><td>${h.rating ?? '–'}</td><td class="nowrap">${bookLinks(h, detail.name, checkin, nights)}</td></tr>`)
       .join('');
+  $('#hotelsNote').hidden = !avail;
+  if (!avail) {
+    checkStay(detail.name, null, checkin, nights)
+      .then((res) => {
+        state.hotelAvail = { key: `${detail.name}|${checkin}|${nights}`, byId: new Map(res.hotels.map((x) => [x.id, x])) };
+        if (state.tab === detail.name) renderHotels(detail, showAll);
+      })
+      .catch(() => {});
+  }
   const btn = $('#moreHotels');
   btn.hidden = rows.length <= 10;
   btn.textContent = showAll ? 'Show fewer' : `Show all ${rows.length} hotels`;
@@ -689,20 +735,18 @@ function hotelDates(cityName) {
   return { checkin: nightDate(startIdx), nights };
 }
 
-// Deep links that open the hotel on Booking.com / Agoda with dates and guests filled in.
-// They search by hotel name + city, so the right hotel is (almost always) the top result.
+// Links to book: Booking.com (dates + guests prefilled) and Google Hotels, which is where
+// our prices come from and lists every site's offer for the hotel.
+// (Agoda isn't included: its links need Agoda's internal hotel IDs.)
 function bookLinks(h, cityName, checkin, nights) {
   const checkout = addDays(checkin, nights);
-  const adults = state.trip.params.adults;
-  const q = `${h.name}, ${cityName}`;
+  const p = state.trip.params;
   const booking = 'https://www.booking.com/searchresults.html?' + new URLSearchParams({
-    ss: q, checkin, checkout, group_adults: adults, no_rooms: 1, group_children: 0, lang: 'en-us', selected_currency: state.trip.params.currency,
+    ss: `${h.name}, ${cityName}`, checkin, checkout, group_adults: p.adults, no_rooms: 1, group_children: 0, lang: 'en-us', selected_currency: p.currency,
   });
-  const agoda = 'https://www.agoda.com/search?' + new URLSearchParams({
-    textToSearch: q, checkIn: checkin, checkOut: checkout, los: nights, adults, rooms: 1, children: 0, locale: 'en-us', currencyCode: state.trip.params.currency,
-  });
+  const google = 'https://www.google.com/travel/search?' + new URLSearchParams({ q: `${h.name} ${cityName}`, hl: 'en' });
   const site = h.link ? ` · <a href="${esc(h.link)}" target="_blank" rel="noopener">Hotel site</a>` : '';
-  return `<span class="book"><a href="${esc(booking)}" target="_blank" rel="noopener">Booking.com</a> · <a href="${esc(agoda)}" target="_blank" rel="noopener">Agoda</a>${site}</span>`;
+  return `<span class="book"><a href="${esc(booking)}" target="_blank" rel="noopener">Booking.com</a> · <a href="${esc(google)}" target="_blank" rel="noopener">Google Hotels</a>${site}</span>`;
 }
 
 function renderCityMap(detail) {

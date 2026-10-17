@@ -5,6 +5,7 @@
 //   GET /api/place?q=Japan                country → popular cities (or a single city)
 //   GET /api/trip?cities=Tokyo,Kyoto&...  nightly price series for each city
 //   GET /api/city?cities=Tokyo&...        hotels + areas for one city (served from cache)
+//   GET /api/stay?city=Tokyo&area=Ueno&checkin=&checkout=   live availability for one exact stay
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';

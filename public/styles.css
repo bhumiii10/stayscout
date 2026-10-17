@@ -208,3 +208,8 @@ button.ghost { background: transparent; color: var(--accent); padding: 8px 10px;
 .book a, .leaflet-popup-content .book a { color: var(--accent); text-decoration: none; font-weight: 550; }
 .book a:hover { text-decoration: underline; }
 .nowrap { white-space: nowrap; }
+.ok { color: #0a7d0a; font-weight: 600; }
+:root[data-theme="dark"] .ok { color: #5fd35f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ok { color: #5fd35f; } }
+tr.dim td:not(:last-child) { opacity: 0.55; }
+.split-hotels li { margin-bottom: 8px; }
