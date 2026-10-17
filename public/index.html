@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StayScout</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">StayScout</div>
+    <span id="mode" class="pill"></span>
+  </header>
+
+  <main>
+    <section class="intro" id="intro">
+      <h1>Where and when is it cheapest to stay?</h1>
+      <p class="muted">Pick a country, the cities you like, and a rough date window. We'll find the cheapest dates, route and areas to stay.</p>
+    </section>
+
+    <form id="gate" class="card gate" hidden>
+      <label for="gateCode" class="step-title">This StayScout is private. Enter the access code:</label>
+      <div class="row">
+        <input id="gateCode" type="password" autocomplete="current-password" required />
+        <button type="submit">Unlock</button>
+      </div>
+    </form>
+
+    <form id="search" class="card search" autocomplete="off">
+      <div class="step">
+        <span class="num">1</span>
+        <div class="step-body">
+          <label for="place" class="step-title">Where to?</label>
+          <div class="row">
+            <input id="place" name="place" placeholder="A country (Japan) or a city (Lisbon)" value="Japan" />
+            <button type="button" id="findCities" class="secondary">Find cities</button>
+          </div>
+          <div id="cityPicker" class="city-picker" hidden>
+            <div class="muted small" id="cityHint"></div>
+            <div id="chips" class="chips"></div>
+            <div class="row add-city">
+              <input id="addCity" placeholder="Add another city…" />
+              <button type="button" id="addCityBtn" class="ghost">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="num">2</span>
+        <div class="step-body">
+          <span class="step-title">When?</span>
+          <div class="when">
+            <label>Earliest start<input name="from" type="date" required /></label>
+            <label>Latest start<input name="to" type="date" required /></label>
+            <label>Trip length<span class="suffix"><input name="nights" type="number" min="1" max="30" value="8" required /><span>nights</span></span></label>
+          </div>
+          <details class="more">
+            <summary>More options</summary>
+            <div class="when">
+              <label>Adults<input name="adults" type="number" min="1" max="8" value="2" /></label>
+              <label>Currency
+                <select name="currency"><option>USD</option><option>EUR</option><option>GBP</option><option>INR</option><option>JPY</option><option>AUD</option></select>
+              </label>
+              <label>Hotel class
+                <select name="minStars"><option value="0">Any</option><option value="3">3★ and up</option><option value="4">4★ and up</option></select>
+              </label>
+              <label>Accuracy
+                <select name="samples">
+                  <option value="4">Quick: 4 nights checked per city</option>
+                  <option value="5" selected>Balanced: 5 per city</option>
+                  <option value="8">Precise: 8 per city</option>
+                  <option value="12">Very precise: 12 per city</option>
+                </select>
+              </label>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="submit-row">
+        <span id="cost" class="muted small"></span>
+        <button type="submit" id="go">Plan my trip</button>
+      </div>
+    </form>
+
+    <div id="summary" class="card summary" hidden>
+      <span id="summaryText"></span>
+      <button type="button" id="editSearch" class="secondary">Edit search</button>
+    </div>
+
+    <p id="status" class="status" role="status"></p>
+
+    <section id="results" hidden>
+      <nav id="tabs" class="tabs" role="tablist"></nav>
+
+      <!-- Trip overview -->
+      <div id="tripView">
+        <div class="card plan">
+          <div class="plan-main">
+            <div class="eyebrow">Cheapest plan</div>
+            <div id="planDates" class="big"></div>
+            <div id="planRoute" class="route"></div>
+            <div id="planTotal" class="muted"></div>
+          </div>
+          <div class="plan-side">
+            <div class="eyebrow">Nights in each city</div>
+            <div id="alloc" class="alloc"></div>
+            <div id="allocNote" class="muted small"></div>
+          </div>
+        </div>
+
+        <div id="altWrap" class="alts"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>When is each city cheapest?</h2>
+            <div id="matrixLegend" class="legend"></div>
+          </div>
+          <p class="muted small">Typical hotel price per night. Outlined = your selected plan.</p>
+          <div id="matrix" class="matrix"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Cities on the map</h2></div>
+          <div id="countryMap" class="map"></div>
+        </div>
+      </div>
+
+      <!-- One city -->
+      <div id="cityView" hidden>
+        <div class="card plan">
+          <div class="plan-main">
+            <div class="eyebrow" id="cityEyebrow"></div>
+            <div id="cityBest" class="big"></div>
+            <div id="cityBestSub" class="muted"></div>
+          </div>
+          <div class="plan-side">
+            <div class="eyebrow">In your plan</div>
+            <div id="cityInPlan" class="big small-big"></div>
+            <div id="cityInPlanSub" class="muted"></div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <div class="card-head">
+              <h2>Nightly prices</h2>
+              <div id="calLegend" class="legend"></div>
+            </div>
+            <p class="muted small"><span class="dot-inline"></span> = price checked, others estimated. Click a date to start your stay there.</p>
+            <div id="calendar" class="calendar"></div>
+          </div>
+          <div class="card">
+            <h2>Cheapest areas</h2>
+            <p class="muted small">Typical price per night.</p>
+            <ol id="areas" class="list"></ol>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Hotels</h2></div>
+          <div id="cityMap" class="map"></div>
+          <table id="hotels" class="table"></table>
+          <button type="button" id="moreHotels" class="ghost" hidden>Show all hotels</button>
+        </div>
+      </div>
+
+      <p id="foot" class="muted small foot"></p>
+    </section>
+  </main>
+
+  <div id="tip" class="tip" hidden></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
