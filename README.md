@@ -1,16 +1,19 @@
 # StayScout
 
-Type a country (or a city), pick the cities you like, give a rough date window and a trip length.
-StayScout shows:
+**Switch hotels once. Pay less for the same trip.**
 
-- **The cheapest plan:** which order to visit your cities and the best start date. You can change how many nights you spend in each city, and it recalculates instantly.
-- **When to go where:** a grid of cities × nights, colored by hotel price
-- **Switch hotels once?** For fixed dates in a city: is it cheaper to stay at one hotel, or at Hotel A first and then move to a cheaper Hotel B? Every possible move day is compared using real quotes for each exact part of the stay (only hotels with rooms every night). A hotels × nights grid shows which hotel is cheapest on which night.
-- **Live availability + booking links:** before recommending hotels for a stay, one real search for the exact check-in → check-out dates confirms which hotels have rooms *every* night (✓) and gives the real total. Each hotel links to Booking.com (dates and guests prefilled) and Google Hotels (all sites' offers). Agoda isn't linked: its URLs need Agoda's internal hotel IDs.
-- **Each city in detail:** price calendar, cheapest areas, hotel map and list
+Hotel prices change night to night. Give StayScout a city and fixed dates (e.g. Tokyo, Mar 8 → 15) and it checks every way to split the stay between two hotels:
 
-Prices come from **Google Hotels via SerpApi**. Google Hotels pulls in Booking.com, Agoda, Expedia and others. With no key, it runs on **demo data**: fake prices for every city in `lib/countries.js`.
-Hotel and area names are shown in English. Google and OpenStreetMap are asked for English, and anything still in another script is translated with MyMemory's free API.
+- **One hotel:** the cheapest hotel with rooms for every night.
+- **Switch once:** for each possible move day, the cheapest hotel for the first part plus the cheapest *other* hotel for the second part.
+- **The verdict:** "Switch once and save $30" (Hotel A for 3 nights, then Hotel B for 4) or "Stay put", with a timeline, every move day compared, and booking links with the dates filled in.
+- **Which hotel is cheapest each night:** a hotels × nights price grid.
+
+Every number in the switch comparison is a real quote from Google Hotels (which aggregates Booking.com, Agoda, Expedia and hotel sites) for that exact part of the stay. Only hotels with rooms on every night of each part are used.
+
+There's also a **Trip planner** tab for flexible dates and several cities. It finds the cheapest dates and city order, and each city links into the hotel switch tool.
+
+With no API key it runs on **demo data** (fake prices for the cities in `lib/countries.js`).
 
 ## Run it
 
@@ -68,7 +71,9 @@ The free SerpApi tier gives 250 searches/month (and 50/hour). So:
 | `lib/translate.js` | Translates non-English names (MyMemory, cached) |
 | `lib/areas.js` | Groups hotels into areas and names them (OpenStreetMap) |
 | `lib/cache.js` | Disk cache in `.cache/` |
-| `public/app.js` | UI: search, tabs, plan, grid, calendar, maps |
+| `public/switch.js` | Hotel switch: the main tool |
+| `public/app.js` | Trip planner UI: search, tabs, plan, grid, calendar, maps |
+| `public/api.js` | API calls + optional access code |
 | `public/itinerary.js` | Route + start-date optimiser |
 
 To add another data source, write a module with `fetchNight({ city, date, adults, currency, minStars })` that returns `{ hotels: [{ id, name, lat, lng, price, stars, rating, link }] }` and wire it up in `lib/providers.js`.

@@ -4,7 +4,8 @@
 // 3) itinerary.js finds the cheapest order + start date (in the browser)
 // 4) /api/city returns hotels + areas for a city tab (served from cache)
 import { optimise, splitNights } from './itinerary.js';
-import { $, $$, addDays, diffDays, esc, fmtDay, fmtDayW, legendHtml, moneyFormatter, scale, tipOn, cssVar } from './util.js';
+import { $, $$, addDays, bookLinks as bookLinksFor, diffDays, esc, fmtDay, fmtDayW, legendHtml, moneyFormatter, renderNightGrid, scale, tipOn, cssVar } from './util.js';
+import { api, hasCode, info, onUnlock, showGate } from './api.js';
 
 const MAX_CITIES = 6;
 const form = $('#search');
@@ -34,44 +35,14 @@ let money = moneyFormatter('USD');
   form.checkout.value = addDays(today, 37);
   form.checkin.min = form.checkout.min = today;
   form.from.min = form.to.min = today;
-  fetch('/api/info').then((r) => r.json()).then((info) => {
+  info.then((info) => {
     state.live = info.live;
-    const el = $('#mode');
-    el.textContent = info.live ? 'Live prices · Google Hotels' : 'Demo mode · fake prices';
-    el.classList.toggle('live', info.live);
     updateCost();
-    if (info.needsCode && !accessCode) showGate();
+    if (info.needsCode && !hasCode()) showGate();
     else findCities();
   });
+  onUnlock(findCities);
 })();
-
-// ---------- API + optional access code ----------
-let accessCode = '';
-try { accessCode = localStorage.getItem('stayscout-code') || ''; } catch {}
-
-async function api(path) {
-  const res = await fetch(path, { headers: accessCode ? { 'x-access-code': accessCode } : {} });
-  const data = await res.json();
-  if (res.status === 401) {
-    showGate();
-    throw new Error('Enter the access code to search.');
-  }
-  if (!res.ok) throw new Error(data.error || 'Request failed');
-  return data;
-}
-
-function showGate() {
-  $('#gate').hidden = false;
-  $('#gateCode').focus();
-}
-$('#gate').addEventListener('submit', (e) => {
-  e.preventDefault();
-  accessCode = $('#gateCode').value.trim();
-  try { localStorage.setItem('stayscout-code', accessCode); } catch {}
-  $('#gate').hidden = true;
-  setStatus('');
-  findCities();
-});
 
 function setStatus(msg, isError = false) {
   status.textContent = msg;
@@ -432,7 +403,6 @@ async function showCity(name) {
   renderCalendar(city);
   if (!state.cityDetail.has(name)) {
     $('#areas').innerHTML = '<li class="muted">Loading areas…</li>';
-    $('#switchResult').innerHTML = '';
     $('#hotels').innerHTML = '';
     try {
       const data = await api('/api/city?' + queryString([name]));
@@ -444,7 +414,7 @@ async function showCity(name) {
   }
   if (state.tab !== name) return; // user switched tabs while loading
   const detail = state.cityDetail.get(name);
-  renderSwitch(city, detail);
+  renderCityCta(city, detail);
   renderAreas(detail);
   renderHotels(detail, false);
   renderCityMap(detail);
@@ -560,133 +530,18 @@ function checkStay(cityName, area, checkin, nights) {
   return stayChecks.get(key);
 }
 
-// ---------- switch hotels once ----------
-const switchResults = new Map();
-
-function renderSwitch(city, detail) {
+// ---------- jump to the Hotel switch tool ----------
+function renderCityCta(city, detail) {
   const { startIdx, n } = cityStay(city);
   const checkin = nightDate(startIdx);
   const checkout = addDays(checkin, n);
-  $('#switchDates').textContent = `${fmtDayW(checkin)} → ${fmtDayW(checkout)} · ${n} nights`;
-  renderNightGrid(detail, startIdx, n);
-
-  const params = () => {
+  $('#cityCtaText').textContent = `See if staying at one hotel or moving once is cheaper for ${fmtDay(checkin)} → ${fmtDay(checkout)} (${n} nights), using real prices for those exact nights.`;
+  $('#cityCta').onclick = () => {
     const p = state.trip.params;
-    return new URLSearchParams({ city: city.name, checkin, checkout, minNights: $('#swMin').value, minRating: $('#swRating').value, adults: p.adults, currency: p.currency, minStars: p.minStars });
+    window.dispatchEvent(new CustomEvent('open-switch', { detail: { city: city.name, checkin, checkout, adults: p.adults, currency: p.currency, minStars: p.minStars } }));
   };
-  const updateCost = () => {
-    const min = Number($('#swMin').value);
-    const moveDays = Math.max(0, n - 2 * min + 1);
-    $('#swGo').disabled = moveDays === 0;
-    $('#swCost').textContent = moveDays === 0
-      ? `Too few nights to move with ${min}+ nights per hotel.`
-      : state.live ? `Uses up to ${1 + 2 * moveDays} searches (repeats are free).` : 'Demo mode: free.';
-    const cached = switchResults.get(params().toString());
-    if (cached) drawSwitch(cached, city.name);
-    else $('#switchResult').innerHTML = '';
-  };
-  const run = async () => {
-    const key = params().toString();
-    $('#swGo').disabled = true;
-    $('#switchResult').innerHTML = '<p class="muted">Getting real prices for every way to split your stay…</p>';
-    try {
-      const res = switchResults.get(key) || (await api('/api/hotelswitch?' + key));
-      switchResults.set(key, res);
-      if (state.tab === city.name && params().toString() === key) drawSwitch(res, city.name);
-    } catch (err) {
-      $('#switchResult').innerHTML = `<p class="status error">${esc(err.message)}</p>`;
-    } finally {
-      $('#swGo').disabled = false;
-    }
-  };
-  $('#swGo').onclick = run;
-  const changed = () => {
-    updateCost();
-    if (!state.live && !$('#swGo').disabled && !switchResults.has(params().toString())) run();
-  };
-  $('#swMin').onchange = changed;
-  $('#swRating').onchange = changed;
-  updateCost();
-  if (!state.live && !$('#swGo').disabled) run(); // demo is free, so just show it
-}
-
-function drawSwitch(res, cityName) {
-  const one = res.oneHotel[0];
-  const sw = res.bestSwitch;
-  if (!one && !sw) return ($('#switchResult').innerHTML = '<p class="muted">No hotels had rooms for these nights. Try a lower guest rating.</p>');
-  const save = one && sw ? one.total - sw.total : 0;
-  const switchWins = sw && (!one || save > 0);
-
-  const verdict = !sw
-    ? 'No way to switch was found for these dates.'
-    : switchWins
-      ? `Switching saves <b>${money(save)}</b>: move after night ${sw.moveAfter} (${fmtDayW(sw.moveDate)}).`
-      : `Staying in one hotel is cheapest${one && sw ? `: the best switch would cost ${money(-save)} more` : ''}.`;
-
-  const stayBlock = (label, h, checkin, nights) => h ? `<div class="stay">
-      <div class="eyebrow">${label}</div>
-      <div class="name">${esc(h.name)}${h.stars ? ` · ${h.stars}★` : ''}${h.rating ? ` · ${h.rating}/5` : ''}</div>
-      <div class="small">${fmtDay(checkin)} → ${fmtDay(addDays(checkin, nights))} · ${nights} nights · <b>${money(h.total)}</b> (${money(h.perNight)}/night) <span class="ok">✓ rooms all nights</span></div>
-      ${bookLinks(h, cityName, checkin, nights)}
-    </div>` : '';
-
-  const rows = res.switches.map((s) => {
-    const diff = one ? s.total - one.total : 0;
-    return `<tr class="${s === sw ? 'best-row' : ''}"><td>After night ${s.moveAfter}<br><span class="muted">${fmtDay(s.moveDate)}</span></td>
-      <td>${esc(s.first.name)}<br><span class="muted">${money(s.first.total)}</span></td>
-      <td>${esc(s.second.name)}<br><span class="muted">${money(s.second.total)}</span></td>
-      <td><b>${money(s.total)}</b><br><span class="${diff < 0 ? 'ok' : 'muted'}">${diff < 0 ? `save ${money(-diff)}` : diff > 0 ? `+${money(diff)}` : 'same'}</span></td></tr>`;
-  }).join('');
-
-  $('#switchResult').innerHTML = `
-    <p class="verdict">${verdict}</p>
-    <div class="compare">
-      <div class="plan-box ${!switchWins ? 'win' : ''}">
-        <div class="plan-title">One hotel${one ? ` · ${money(one.total)}` : ''}</div>
-        ${stayBlock('All nights', one, res.checkin, res.nights)}
-        ${res.oneHotel.length > 1 ? `<div class="small muted">Next cheapest: ${res.oneHotel.slice(1).map((h) => `${esc(h.name)} ${money(h.total)}`).join(' · ')}</div>` : ''}
-      </div>
-      <div class="plan-box ${switchWins ? 'win' : ''}">
-        <div class="plan-title">Switch once${sw ? ` · ${money(sw.total)}` : ''}</div>
-        ${sw ? stayBlock('First', sw.first, res.checkin, sw.moveAfter) + '<div class="move">↓ move hotels</div>' + stayBlock('Then', sw.second, sw.moveDate, res.nights - sw.moveAfter) : '<p class="muted small">Not possible for these dates.</p>'}
-      </div>
-    </div>
-    ${rows ? `<details class="all-moves"><summary>Compare every move day</summary><table class="table"><tr><th>Move</th><th>First hotel</th><th>Second hotel</th><th>Total</th></tr>${rows}</table></details>` : ''}
-    <p class="muted small">Hotel prices only. Moving costs time and maybe a taxi. ${state.live ? `This check used ${res.apiCalls.made} new searches.` : ''}</p>`;
-}
-
-// Hotels × nights grid from the nightly checks: which hotel is cheapest on which night.
-function renderNightGrid(detail, startIdx, n) {
   const dates = Array.from({ length: n }, (_, i) => nightDate(startIdx + i));
-  const rows = detail.hotels
-    .map((h) => {
-      const prices = dates.map((d) => h.obs?.[d]);
-      const seen = prices.filter(Number.isFinite);
-      return { h, prices, seen: seen.length, avg: seen.length ? seen.reduce((a, b) => a + b, 0) / seen.length : Infinity };
-    })
-    .filter((r) => r.seen >= Math.max(1, Math.ceil(n / 2)))
-    .sort((a, b) => a.avg - b.avg)
-    .slice(0, 12);
-  if (!rows.length) {
-    $('#nightGrid').innerHTML = '<p class="muted small">No nightly prices for these dates yet. Choose fixed dates to check every night.</p>';
-    $('#nightLegend').innerHTML = '';
-    return;
-  }
-  const all = rows.flatMap((r) => r.prices.filter(Number.isFinite));
-  const sc = scale(all);
-  $('#nightLegend').innerHTML = legendHtml(sc, money, 'per night');
-  const cheapest = dates.map((_, i) => Math.min(...rows.map((r) => r.prices[i]).filter(Number.isFinite)));
-  let html = `<div class="mx wide hotels" style="grid-template-columns: auto repeat(${n}, 48px)"><div class="lbl"></div>`;
-  html += dates.map((d) => `<div class="dn ${[5, 6].includes(new Date(d + 'T00:00:00Z').getUTCDay()) ? 'we' : ''}">${fmtDay(d, { weekday: 'short' })}<br>${Number(d.slice(8))}</div>`).join('');
-  for (const r of rows) {
-    html += `<div class="lbl" title="${esc(r.h.name)}">${esc(r.h.name)}</div>`;
-    html += r.prices
-      .map((p, i) => Number.isFinite(p)
-        ? `<div class="c ${sc.isDark(p) ? 'dark' : ''} ${p === cheapest[i] ? 'in' : ''}" style="background:${sc.color(p)}" title="${esc(r.h.name)}, night of ${fmtDayW(dates[i])}: ${money(p)}">${Math.round(p)}</div>`
-        : '<div class="c empty"></div>')
-      .join('');
-  }
-  $('#nightGrid').innerHTML = html + '</div>';
+  renderNightGrid($('#nightGrid'), $('#nightLegend'), detail.hotels, dates, money);
 }
 
 function renderAreas(detail) {
@@ -744,19 +599,7 @@ function hotelDates(cityName) {
   return { checkin: nightDate(startIdx), nights };
 }
 
-// Links to book: Booking.com (dates + guests prefilled) and Google Hotels, which is where
-// our prices come from and lists every site's offer for the hotel.
-// (Agoda isn't included: its links need Agoda's internal hotel IDs.)
-function bookLinks(h, cityName, checkin, nights) {
-  const checkout = addDays(checkin, nights);
-  const p = state.trip.params;
-  const booking = 'https://www.booking.com/searchresults.html?' + new URLSearchParams({
-    ss: `${h.name}, ${cityName}`, checkin, checkout, group_adults: p.adults, no_rooms: 1, group_children: 0, lang: 'en-us', selected_currency: p.currency,
-  });
-  const google = 'https://www.google.com/travel/search?' + new URLSearchParams({ q: `${h.name} ${cityName}`, hl: 'en' });
-  const site = h.link ? ` · <a href="${esc(h.link)}" target="_blank" rel="noopener">Hotel site</a>` : '';
-  return `<span class="book"><a href="${esc(booking)}" target="_blank" rel="noopener">Booking.com</a> · <a href="${esc(google)}" target="_blank" rel="noopener">Google Hotels</a>${site}</span>`;
-}
+const bookLinks = (h, cityName, checkin, nights) => bookLinksFor(h, cityName, checkin, nights, state.trip.params);
 
 function renderCityMap(detail) {
   if (!leafletReady('cityMap')) return;

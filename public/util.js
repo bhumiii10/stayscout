@@ -45,3 +45,52 @@ export function tipOn(el, html) {
   el.addEventListener('mousemove', (e) => showTip(e, typeof html === 'function' ? html() : html));
   el.addEventListener('mouseleave', hideTip);
 }
+
+// Links to book a hotel: Booking.com (dates + guests prefilled) and Google Hotels
+// (where our prices come from; lists every site's offer). Agoda isn't included:
+// its links need Agoda's internal hotel IDs.
+export function bookLinks(h, cityName, checkin, nights, { adults = 2, currency = 'USD' } = {}) {
+  const checkout = addDays(checkin, nights);
+  const booking = 'https://www.booking.com/searchresults.html?' + new URLSearchParams({
+    ss: `${h.name}, ${cityName}`, checkin, checkout, group_adults: adults, no_rooms: 1, group_children: 0, lang: 'en-us', selected_currency: currency,
+  });
+  const google = 'https://www.google.com/travel/search?' + new URLSearchParams({ q: `${h.name} ${cityName}`, hl: 'en' });
+  const site = h.link ? ` · <a href="${esc(h.link)}" target="_blank" rel="noopener">Hotel site</a>` : '';
+  return `<span class="book"><a href="${esc(booking)}" target="_blank" rel="noopener">Booking.com</a> · <a href="${esc(google)}" target="_blank" rel="noopener">Google Hotels</a>${site}</span>`;
+}
+
+// Hotels × nights grid: which hotel is cheapest on which night.
+// hotels: [{ name, obs: { 'YYYY-MM-DD': price } }]
+export function renderNightGrid(gridEl, legendEl, hotels, dates, money, { highlight } = {}) {
+  const n = dates.length;
+  const rows = hotels
+    .map((h) => {
+      const prices = dates.map((d) => h.obs?.[d]);
+      const seen = prices.filter(Number.isFinite);
+      return { h, prices, seen: seen.length, avg: seen.length ? seen.reduce((a, b) => a + b, 0) / seen.length : Infinity };
+    })
+    .filter((r) => r.seen >= Math.max(1, Math.ceil(n / 2)))
+    .sort((a, b) => a.avg - b.avg)
+    .slice(0, 12);
+  if (!rows.length) {
+    gridEl.innerHTML = '<p class="muted small">No nightly prices for these dates.</p>';
+    legendEl.innerHTML = '';
+    return;
+  }
+  const sc = scale(rows.flatMap((r) => r.prices.filter(Number.isFinite)));
+  legendEl.innerHTML = legendHtml(sc, money, 'per night');
+  const cheapest = dates.map((_, i) => Math.min(...rows.map((r) => r.prices[i]).filter(Number.isFinite)));
+  const isWe = (d) => [5, 6].includes(toDate(d).getUTCDay());
+  let html = `<div class="mx wide hotels" style="grid-template-columns: auto repeat(${n}, 48px)"><div class="lbl"></div>`;
+  html += dates.map((d) => `<div class="dn ${isWe(d) ? 'we' : ''}">${fmtDay(d, { weekday: 'short' })}<br>${Number(d.slice(8))}</div>`).join('');
+  for (const r of rows) {
+    const mark = highlight?.has(r.h.name) ? ' ★' : '';
+    html += `<div class="lbl" title="${esc(r.h.name)}">${esc(r.h.name)}${mark}</div>`;
+    html += r.prices
+      .map((p, i) => Number.isFinite(p)
+        ? `<div class="c ${sc.isDark(p) ? 'dark' : ''} ${p === cheapest[i] ? 'in' : ''}" style="background:${sc.color(p)}" title="${esc(r.h.name)}, night of ${fmtDayW(dates[i])}: ${money(p)}">${Math.round(p)}</div>`
+        : '<div class="c empty"></div>')
+      .join('');
+  }
+  gridEl.innerHTML = html + '</div>';
+}

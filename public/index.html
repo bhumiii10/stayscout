@@ -10,15 +10,14 @@
 <body>
   <header class="top">
     <div class="brand">StayScout</div>
+    <nav class="views" aria-label="Tools">
+      <button type="button" class="view-tab" data-view="switch" aria-current="page">Hotel switch</button>
+      <button type="button" class="view-tab" data-view="planner">Trip planner</button>
+    </nav>
     <span id="mode" class="pill"></span>
   </header>
 
   <main>
-    <section class="intro" id="intro">
-      <h1>Where and when is it cheapest to stay?</h1>
-      <p class="muted">Pick a country, the cities you like, and a rough date window. We'll find the cheapest dates, route and areas to stay.</p>
-    </section>
-
     <form id="gate" class="card gate" hidden>
       <label for="gateCode" class="step-title">This StayScout is private. Enter the access code:</label>
       <div class="row">
@@ -26,6 +25,82 @@
         <button type="submit">Unlock</button>
       </div>
     </form>
+
+    <!-- ===== Hotel switch: the main tool ===== -->
+    <section id="switchView">
+      <div class="hero" id="swHero">
+        <h1>Switch hotels once.<br /><span class="accent">Pay less for the same trip.</span></h1>
+        <p class="muted">Hotel prices change night to night. Tell us your dates and we'll check every way to split your stay between two hotels, using real prices for those exact nights, then show you if moving saves money.</p>
+      </div>
+
+      <form id="swForm" class="card sw-form" autocomplete="off">
+        <div class="sw-fields">
+          <label class="sw-city">Where are you staying?<input name="city" value="Tokyo" placeholder="City, e.g. Tokyo" required /></label>
+          <label>Check-in<input name="checkin" type="date" required /></label>
+          <label>Check-out<input name="checkout" type="date" required /></label>
+          <label>Guests<input name="adults" type="number" min="1" max="8" value="2" /></label>
+          <button type="submit" id="swGo" class="big-btn">Find my cheapest stay</button>
+        </div>
+        <details class="more">
+          <summary>Options</summary>
+          <div class="when">
+            <label>Move after at least<select name="minNights"><option value="1">1 night</option><option value="2" selected>2 nights</option><option value="3">3 nights</option></select></label>
+            <label>Guest rating<select name="minRating"><option value="0">Any</option><option value="3.5" selected>3.5+</option><option value="4">4+</option><option value="4.5">4.5+</option></select></label>
+            <label>Hotel class<select name="minStars"><option value="0">Any</option><option value="3">3★ and up</option><option value="4">4★ and up</option></select></label>
+            <label>Currency<select name="currency"><option>USD</option><option>EUR</option><option>GBP</option><option>INR</option><option>JPY</option><option>AUD</option></select></label>
+          </div>
+        </details>
+        <div class="sw-cost muted small" id="swCost"></div>
+      </form>
+
+      <ol class="how" id="swHow">
+        <li><b>1. One hotel</b><span>We find the cheapest hotel with rooms for your whole stay.</span></li>
+        <li><b>2. Every move day</b><span>For each possible move day, we price the first part and the second part separately, using real quotes.</span></li>
+        <li><b>3. The verdict</b><span>Switch if it's cheaper, stay put if not. Book each hotel with your dates already filled in.</span></li>
+      </ol>
+
+      <div id="swSummary" class="card summary" hidden>
+        <span id="swSummaryText"></span>
+        <button type="button" id="swEdit" class="secondary">Change search</button>
+      </div>
+      <p id="swStatus" class="status" role="status"></p>
+
+      <div id="swResults" hidden>
+        <div class="card sw-verdict-card">
+          <div class="eyebrow" id="swWhere"></div>
+          <h2 class="sw-verdict" id="swVerdict"></h2>
+          <p class="muted" id="swVerdictSub"></p>
+          <div class="sw-timeline" id="swTimeline"></div>
+        </div>
+
+        <div class="compare" id="swCompare"></div>
+
+        <div class="card">
+          <div class="card-head"><h2>Every move day</h2><span class="muted small">Real totals for each split</span></div>
+          <div id="swMoves"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Which hotel is cheapest each night</h2>
+            <div id="swGridLegend" class="legend"></div>
+          </div>
+          <p class="muted small">One-night prices for each hotel. Outlined = cheapest that night. Blank = not in that night's results.</p>
+          <div id="swGrid" class="matrix"></div>
+          <button type="button" id="swGridBtn" class="secondary" hidden></button>
+        </div>
+
+        <p class="muted small" id="swFoot"></p>
+      </div>
+    </section>
+
+    <!-- ===== Trip planner: flexible dates / several cities ===== -->
+    <section id="plannerView" hidden>
+    <section class="intro" id="intro">
+      <h1>Plan a trip with flexible dates</h1>
+      <p class="muted">Pick a country, the cities you like and a rough date window. We'll find the cheapest dates, route and areas to stay.</p>
+    </section>
+
 
     <form id="search" class="card search" autocomplete="off">
       <div class="step">
@@ -65,7 +140,7 @@
           <div class="when" id="fixedFields" hidden>
             <label>Check-in<input name="checkin" type="date" /></label>
             <label>Check-out<input name="checkout" type="date" /></label>
-            <span class="muted small fixed-note">Every night gets checked, so we can also find the cheapest mix of districts.</span>
+            <span class="muted small fixed-note">Every night gets checked.</span>
           </div>
           <details class="more">
             <summary>More options</summary>
@@ -154,25 +229,21 @@
           </div>
         </div>
 
-        <div class="card" id="switchCard">
+        <div class="card cta-card">
+          <div>
+            <h2>Should you switch hotels in this city?</h2>
+            <p class="muted small" id="cityCtaText"></p>
+          </div>
+          <button type="button" id="cityCta">Check hotel switch →</button>
+        </div>
+
+        <div class="card">
           <div class="card-head">
-            <h2>Switch hotels once?</h2>
-            <span class="muted small" id="switchDates"></span>
-          </div>
-          <p class="muted small">Is it cheaper to stay at one hotel, or at one hotel first and then move to a cheaper one? Every price below is a real quote for those exact nights, and only hotels with rooms on every night are used.</p>
-          <div class="switch-controls">
-            <label>Nights before moving<select id="swMin"><option value="1">1 or more</option><option value="2" selected>2 or more</option><option value="3">3 or more</option></select></label>
-            <label>Guest rating<select id="swRating"><option value="0">Any</option><option value="3.5" selected>3.5+</option><option value="4">4+</option></select></label>
-            <button type="button" id="swGo">Find the cheapest plan</button>
-            <span class="muted small" id="swCost"></span>
-          </div>
-          <div id="switchResult"></div>
-          <details class="night-grid-wrap" open>
-            <summary>Which hotel is cheapest each night</summary>
-            <p class="muted small">One-night prices from the nightly checks. Outlined = cheapest that night. Blank = not in that night's results.</p>
+            <h2>Which hotel is cheapest each night</h2>
             <div id="nightLegend" class="legend"></div>
-            <div id="nightGrid" class="matrix"></div>
-          </details>
+          </div>
+          <p class="muted small">One-night prices from the nightly checks. Outlined = cheapest that night.</p>
+          <div id="nightGrid" class="matrix"></div>
         </div>
 
         <div class="grid2">
@@ -202,11 +273,13 @@
 
       <p id="foot" class="muted small foot"></p>
     </section>
+    </section>
   </main>
 
   <div id="tip" class="tip" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="/app.js"></script>
+  <script type="module" src="/switch.js"></script>
 </body>
 </html>
