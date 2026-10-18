@@ -5,7 +5,7 @@ StayScout shows:
 
 - **The cheapest plan:** which order to visit your cities and the best start date. You can change how many nights you spend in each city, and it recalculates instantly.
 - **When to go where:** a grid of cities × nights, colored by hotel price
-- **Fixed dates? Split your stay by district:** e.g. 3 nights in Ueno, then 4 in Asakusa, if that's cheaper. With fixed dates, every night is checked and the best mix of districts is found (0, 1 or 2 hotel changes, each stay ≥ 2 nights). A move is only recommended if it saves at least 5%.
+- **Switch hotels once?** For fixed dates in a city: is it cheaper to stay at one hotel, or at Hotel A first and then move to a cheaper Hotel B? Every possible move day is compared using real quotes for each exact part of the stay (only hotels with rooms every night). A hotels × nights grid shows which hotel is cheapest on which night.
 - **Live availability + booking links:** before recommending hotels for a stay, one real search for the exact check-in → check-out dates confirms which hotels have rooms *every* night (✓) and gives the real total. Each hotel links to Booking.com (dates and guests prefilled) and Google Hotels (all sites' offers). Agoda isn't linked: its URLs need Agoda's internal hotel IDs.
 - **Each city in detail:** price calendar, cheapest areas, hotel map and list
 
@@ -44,7 +44,7 @@ The free SerpApi tier gives 250 searches/month (and 50/hour). So:
 2. **Sample.** For each picked city, about 5 nights spread across your window are checked, roughly 1 in 3 on Fri/Sat. Each check is one API search. 4 cities × 5 = 20 searches.
 3. **Estimate the rest.** The weekend premium is measured, then a straight line is drawn between the checked nights to get the trend, and the premium is added back on Fri/Sat nights.
 4. **Plan the route** (in the browser, `public/itinerary.js`). It tries every city order × every start date and picks the cheapest. Zig-zag routes get a small distance penalty, so near-ties go to the route that makes geographic sense. Train/flight costs between cities are **not** included.
-5. **District split** (`splitStay` in `public/itinerary.js`). Each district's price per night comes from its hotels' real prices on the checked nights, or an estimate when none of its hotels showed up that night. A small dynamic-programming search then finds the cheapest sequence of districts.
+5. **Switch hotels once** (`findSwitch` in `lib/plan.js`): one search for the whole stay, plus one for each part (check-in → move day, move day → check-out) for every allowed move day, all sorted cheapest first. It then pairs the cheapest hotel for part 1 with the cheapest *different* hotel for part 2. A 7-night stay with 2+ nights per hotel uses 9 searches, and only runs when you press the button.
 6. **City detail.** Opening a city tab reuses the cached samples (no new searches) and names the cheapest areas using OpenStreetMap (free).
 7. **Cache.** Every lookup is saved in `.cache/` for 24h.
 
@@ -58,6 +58,7 @@ The free SerpApi tier gives 250 searches/month (and 50/hour). So:
 |---|---|
 | `dev-server.js` | Local dev server: static files + API |
 | `api/*.js` | Vercel serverless functions (thin wrappers) |
+| `api/hotelswitch.js` | One hotel vs switch-once comparison |
 | `api/stay.js` | Live availability for one exact stay |
 | `lib/routes.js` | API handlers shared by both, plus the optional access code |
 | `lib/plan.js` | Sampling + estimating each city's nightly prices; hotel aggregation |

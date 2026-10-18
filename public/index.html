@@ -154,19 +154,24 @@
           </div>
         </div>
 
-        <div class="card" id="splitCard">
+        <div class="card" id="switchCard">
           <div class="card-head">
-            <h2>Cheapest mix of districts</h2>
-            <span class="muted small" id="splitDates"></span>
+            <h2>Switch hotels once?</h2>
+            <span class="muted small" id="switchDates"></span>
           </div>
-          <p class="muted small" id="splitIntro"></p>
-          <div id="splitOpts" class="alts split-opts"></div>
-          <div id="splitTimeline" class="timeline"></div>
-          <div id="splitHotels" class="split-hotels"></div>
-          <details class="split-grid-wrap">
-            <summary>District prices night by night</summary>
-            <div id="splitLegend" class="legend"></div>
-            <div id="splitMatrix" class="matrix"></div>
+          <p class="muted small">Is it cheaper to stay at one hotel, or at one hotel first and then move to a cheaper one? Every price below is a real quote for those exact nights, and only hotels with rooms on every night are used.</p>
+          <div class="switch-controls">
+            <label>Nights before moving<select id="swMin"><option value="1">1 or more</option><option value="2" selected>2 or more</option><option value="3">3 or more</option></select></label>
+            <label>Guest rating<select id="swRating"><option value="0">Any</option><option value="3.5" selected>3.5+</option><option value="4">4+</option></select></label>
+            <button type="button" id="swGo">Find the cheapest plan</button>
+            <span class="muted small" id="swCost"></span>
+          </div>
+          <div id="switchResult"></div>
+          <details class="night-grid-wrap" open>
+            <summary>Which hotel is cheapest each night</summary>
+            <p class="muted small">One-night prices from the nightly checks. Outlined = cheapest that night. Blank = not in that night's results.</p>
+            <div id="nightLegend" class="legend"></div>
+            <div id="nightGrid" class="matrix"></div>
           </details>
         </div>
 
