@@ -267,3 +267,8 @@ tr.dim td:not(:last-child) { opacity: 0.55; }
   .tl-day { display: none; }
   .mx.hotels .lbl { max-width: 120px; }
 }
+
+.banner { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid currentColor; border-radius: 12px; padding: 14px 16px; margin: 12px 0 4px; font-size: 14px; line-height: 1.5; }
+.banner code { background: rgb(0 0 0 / 0.06); padding: 1px 5px; border-radius: 4px; }
+.fresh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -2px 0 4px; }
+.fresh .ghost { padding: 4px 8px; font-size: 13px; }

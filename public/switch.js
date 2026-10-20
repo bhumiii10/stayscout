@@ -31,6 +31,13 @@ $$('.view-tab').forEach((t) => t.addEventListener('click', () => showView(t.data
     const pill = $('#mode');
     pill.textContent = live ? 'Live prices · Google Hotels' : 'Demo mode · fake prices';
     pill.classList.toggle('live', live);
+    if (!live) {
+      const banner = $('#demoBanner');
+      banner.innerHTML = i.deployed
+        ? '<b>Not connected to live prices.</b> This site has no SerpApi key, so every hotel and price here is made up. To fix: Vercel → your project → Settings → Environment Variables → add <code>SERPAPI_KEY</code> (tick Production) → Deployments → Redeploy.'
+        : '<b>Demo mode:</b> no <code>SERPAPI_KEY</code> in your <code>.env</code>, so every hotel and price here is made up.';
+      banner.hidden = false;
+    }
     updateCost();
   });
 })();
@@ -68,16 +75,23 @@ $('#swEdit').addEventListener('click', () => {
   form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
-form.addEventListener('submit', async (e) => {
+form.addEventListener('submit', (e) => {
   e.preventDefault();
+  search(false);
+});
+$('#swRefresh').addEventListener('click', () => search(true));
+
+const HOUR = 3600_000;
+async function search(fresh) {
   if (!(nights() >= 1)) return setStatus('Check-out must be after check-in.', true);
   const fd = new FormData(form);
   const params = Object.fromEntries(['city', 'checkin', 'checkout', 'adults', 'minNights', 'minRating', 'minStars', 'currency'].map((k) => [k, String(fd.get(k)).trim()]));
   const key = new URLSearchParams(params).toString();
-  $('#swGo').disabled = true;
-  setStatus(`Pricing every way to split ${nights()} nights in ${params.city}… this can take 20–40 seconds.`);
+  const reuse = !fresh && results.get(key);
+  $('#swGo').disabled = $('#swRefresh').disabled = true;
+  setStatus(fresh ? 'Getting brand-new prices… this can take 20–40 seconds.' : `Pricing every way to split ${nights()} nights in ${params.city}… this can take 20–40 seconds.`);
   try {
-    const res = results.get(key) || (await api('/api/hotelswitch?' + key));
+    const res = reuse && Date.now() - reuse.checkedAt < HOUR ? reuse : await api('/api/hotelswitch?' + key + (fresh ? '&fresh=1' : ''));
     results.set(key, res);
     current = { params, res };
     money = moneyFormatter(params.currency);
@@ -90,9 +104,9 @@ form.addEventListener('submit', async (e) => {
   } catch (err) {
     setStatus(err.message, true);
   } finally {
-    $('#swGo').disabled = false;
+    $('#swGo').disabled = $('#swRefresh').disabled = false;
   }
-});
+}
 
 // Opened from a city in the Trip planner, with its dates.
 window.addEventListener('open-switch', (e) => {
@@ -119,6 +133,12 @@ function render() {
   const switchWins = Boolean(sw && (!one || save > 0));
 
   $('#swWhere').textContent = `${params.city} · ${fmtDayW(res.checkin)} → ${fmtDayW(res.checkout)} · ${n} nights`;
+  const mins = Math.round((Date.now() - res.checkedAt) / 60000);
+  $('#swFresh').textContent = !res.live
+    ? 'Demo data: these hotels and prices are made up.'
+    : `Prices checked ${mins < 1 ? 'just now' : mins === 1 ? '1 minute ago' : `${mins} minutes ago`}.`;
+  $('#swRefresh').hidden = !res.live;
+  $('#swRefresh').textContent = `Refresh prices (${1 + 2 * Math.max(0, n - 2 * res.minNights + 1)} searches)`;
   if (!one && !sw) {
     $('#swVerdict').textContent = 'No hotels had rooms for these nights';
     $('#swVerdictSub').textContent = 'Try a lower guest rating or hotel class under Options.';

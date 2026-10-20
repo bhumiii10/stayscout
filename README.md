@@ -37,6 +37,8 @@ The `api/` folder holds Vercel serverless functions and `public/` is served as s
 
 Every `git push` to `main` then deploys automatically.
 
+**Check it's live:** open `https://<your-site>/api/info`. `"live":true` means real prices. Without the key, the site shows a big "Not connected to live prices" banner and hotel names start with "Demo".
+
 Notes: on Vercel the cache lives in `/tmp`, which gets wiped now and then, so repeat searches are only *sometimes* free. Each function may run for up to 60s.
 
 ## How it works (and why prices are "semi-accurate")
@@ -49,7 +51,7 @@ The free SerpApi tier gives 250 searches/month (and 50/hour). So:
 4. **Plan the route** (in the browser, `public/itinerary.js`). It tries every city order × every start date and picks the cheapest. Zig-zag routes get a small distance penalty, so near-ties go to the route that makes geographic sense. Train/flight costs between cities are **not** included.
 5. **Switch hotels once** (`findSwitch` in `lib/plan.js`): one search for the whole stay, plus one for each part (check-in → move day, move day → check-out) for every allowed move day, all sorted cheapest first. It then pairs the cheapest hotel for part 1 with the cheapest *different* hotel for part 2. A 7-night stay with 2+ nights per hotel uses 9 searches, and only runs when you press the button.
 6. **City detail.** Opening a city tab reuses the cached samples (no new searches) and names the cheapest areas using OpenStreetMap (free).
-7. **Cache.** Every lookup is saved in `.cache/` for 24h.
+7. **Cache.** Prices are cached for 1 hour (`PRICE_CACHE_MINUTES`), and results show how old they are. **Refresh prices** skips both our cache and SerpApi's. City lists, area names and translations are cached for a week.
 
 "Typical" = median hotel price that night. "Budget" = cheapest quarter. Prices are per room per night, before taxes.
 

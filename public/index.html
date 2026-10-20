@@ -18,6 +18,7 @@
   </header>
 
   <main>
+    <div id="demoBanner" class="banner" role="alert" hidden></div>
     <form id="gate" class="card gate" hidden>
       <label for="gateCode" class="step-title">This StayScout is private. Enter the access code:</label>
       <div class="row">
@@ -70,6 +71,7 @@
           <div class="eyebrow" id="swWhere"></div>
           <h2 class="sw-verdict" id="swVerdict"></h2>
           <p class="muted" id="swVerdictSub"></p>
+          <div class="fresh"><span id="swFresh" class="muted small"></span> <button type="button" id="swRefresh" class="ghost">Refresh prices</button></div>
           <div class="sw-timeline" id="swTimeline"></div>
         </div>
 
