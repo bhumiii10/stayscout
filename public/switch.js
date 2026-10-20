@@ -86,6 +86,7 @@ async function search(fresh) {
   if (!(nights() >= 1)) return setStatus('Check-out must be after check-in.', true);
   const fd = new FormData(form);
   const params = Object.fromEntries(['city', 'checkin', 'checkout', 'adults', 'minNights', 'minRating', 'minStars', 'currency'].map((k) => [k, String(fd.get(k)).trim()]));
+  params.noHostels = form.noHostels.checked ? '1' : '0';
   const key = new URLSearchParams(params).toString();
   const reuse = !fresh && results.get(key);
   $('#swGo').disabled = $('#swRefresh').disabled = true;
@@ -117,6 +118,7 @@ window.addEventListener('open-switch', (e) => {
   form.adults.value = d.adults;
   form.currency.value = d.currency;
   form.minStars.value = String(d.minStars || 0);
+  form.noHostels.checked = d.noHostels !== false;
   showView('switch');
   updateCost();
   form.requestSubmit();
@@ -225,7 +227,7 @@ async function loadGrid(dates) {
   btn.textContent = 'Loading night-by-night prices…';
   const q = new URLSearchParams({
     cities: params.city, from: res.checkin, to: res.checkin, nights: res.nights, samples: Math.min(Math.max(res.nights, 2), 20),
-    adults: params.adults, currency: params.currency, minStars: params.minStars,
+    adults: params.adults, currency: params.currency, minStars: params.minStars, noHostels: params.noHostels,
   });
   try {
     const detail = await api('/api/city?' + q);

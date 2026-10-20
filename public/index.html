@@ -49,6 +49,7 @@
             <label>Guest rating<select name="minRating"><option value="0">Any</option><option value="3.5" selected>3.5+</option><option value="4">4+</option><option value="4.5">4.5+</option></select></label>
             <label>Hotel class<select name="minStars"><option value="0">Any</option><option value="3">3★ and up</option><option value="4">4★ and up</option></select></label>
             <label>Currency<select name="currency"><option>USD</option><option>EUR</option><option>GBP</option><option>INR</option><option>JPY</option><option>AUD</option></select></label>
+            <label class="check"><input type="checkbox" name="noHostels" checked /> Hide hostels &amp; capsule hotels</label>
           </div>
         </details>
         <div class="sw-cost muted small" id="swCost"></div>
@@ -154,6 +155,7 @@
               <label>Hotel class
                 <select name="minStars"><option value="0">Any</option><option value="3">3★ and up</option><option value="4">4★ and up</option></select>
               </label>
+              <label class="check"><input type="checkbox" name="noHostels" checked /> Hide hostels &amp; capsule hotels</label>
               <label>Accuracy
                 <select name="samples">
                   <option value="4">Quick: 4 nights checked per city</option>

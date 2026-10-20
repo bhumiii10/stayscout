@@ -272,3 +272,5 @@ tr.dim td:not(:last-child) { opacity: 0.55; }
 .banner code { background: rgb(0 0 0 / 0.06); padding: 1px 5px; border-radius: 4px; }
 .fresh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -2px 0 4px; }
 .fresh .ghost { padding: 4px 8px; font-size: 13px; }
+label.check { flex-direction: row; align-items: center; gap: 8px; align-self: end; color: var(--ink); font-size: 14px; padding-bottom: 10px; }
+label.check input { width: auto; }

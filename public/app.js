@@ -138,6 +138,7 @@ function queryString(cities) {
   const fd = new FormData(form);
   const p = new URLSearchParams();
   for (const k of ['from', 'to', 'nights', 'adults', 'currency', 'minStars', 'samples']) p.set(k, fd.get(k));
+  p.set('noHostels', form.noHostels.checked ? '1' : '0');
   if (isFixed()) {
     // one possible start date; check every night (up to 20)
     const n = fixedNights();
@@ -518,7 +519,7 @@ function cityStay(city) {
 const stayChecks = new Map();
 function checkStay(cityName, area, checkin, nights) {
   const p = state.trip.params;
-  const q = new URLSearchParams({ city: cityName, checkin, checkout: addDays(checkin, nights), adults: p.adults, currency: p.currency, minStars: p.minStars });
+  const q = new URLSearchParams({ city: cityName, checkin, checkout: addDays(checkin, nights), adults: p.adults, currency: p.currency, minStars: p.minStars, noHostels: p.noHostels ? '1' : '0' });
   if (area) q.set('area', area);
   const key = q.toString();
   if (!stayChecks.has(key)) {
@@ -538,7 +539,7 @@ function renderCityCta(city, detail) {
   $('#cityCtaText').textContent = `See if staying at one hotel or moving once is cheaper for ${fmtDay(checkin)} → ${fmtDay(checkout)} (${n} nights), using real prices for those exact nights.`;
   $('#cityCta').onclick = () => {
     const p = state.trip.params;
-    window.dispatchEvent(new CustomEvent('open-switch', { detail: { city: city.name, checkin, checkout, adults: p.adults, currency: p.currency, minStars: p.minStars } }));
+    window.dispatchEvent(new CustomEvent('open-switch', { detail: { city: city.name, checkin, checkout, adults: p.adults, currency: p.currency, minStars: p.minStars, noHostels: p.noHostels } }));
   };
   const dates = Array.from({ length: n }, (_, i) => nightDate(startIdx + i));
   renderNightGrid($('#nightGrid'), $('#nightLegend'), detail.hotels, dates, money);

@@ -9,6 +9,8 @@ Hotel prices change night to night. Give StayScout a city and fixed dates (e.g. 
 - **The verdict:** "Switch once and save $30" (Hotel A for 3 nights, then Hotel B for 4) or "Stay put", with a timeline, every move day compared, and booking links with the dates filled in.
 - **Which hotel is cheapest each night:** a hotels × nights price grid.
 
+**Hide hostels & capsule hotels** (on by default) removes places whose name says hostel, capsule, dorm, backpackers or bunk. It's applied after the search, so toggling it costs nothing.
+
 Every number in the switch comparison is a real quote from Google Hotels (which aggregates Booking.com, Agoda, Expedia and hotel sites) for that exact part of the stay. Only hotels with rooms on every night of each part are used.
 
 There's also a **Trip planner** tab for flexible dates and several cities. It finds the cheapest dates and city order, and each city links into the hotel switch tool.
